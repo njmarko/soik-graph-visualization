@@ -1,0 +1,336 @@
+
+{% block head_sadrzaj %}
+<style>
+    .link {
+        stroke-width: 1px;
+        stroke: black;
+        color: black;
+        font-size: 2rem;
+        cursor: pointer;
+    }
+
+    .node {
+        cursor: pointer;
+        fill: #0d6efd;
+        font-weight: bold;
+        font-size: 2rem;
+    }
+
+    .selected {
+        fill: rgb(209, 231, 12);
+    }
+     
+    #snackbar {
+        visibility: hidden; 
+        min-width: 250px; 
+        margin-left: -125px; 
+        background-color: #333;
+        color: #fff; 
+        text-align: center;
+        border-radius: 2px; 
+        padding: 16px; 
+        position: fixed; 
+        z-index: 1; 
+        left: 25%;
+        top: 180px;
+    }
+
+    #snackbar.show {
+        visibility: visible; 
+        
+        -webkit-animation: fadein 0.5s;/*, fadeout 1s 4.5s;*/
+        animation: fadein 0.5s;/*, fadeout 1s 4.5s;*/
+    }
+
+    /* Animations to fade the snackbar in and out */
+    @-webkit-keyframes fadein {
+        from {top: 0; opacity: 0;}
+        to {top: 180px; opacity: 1;}
+    }
+
+    @keyframes fadein {
+        from {top: 0; opacity: 0;}
+        to {top: 180px; opacity: 1;}
+    }
+
+    @-webkit-keyframes fadeout {
+        from {top: 180px; opacity: 1;}
+        to {top: 0; opacity: 0;}
+    }
+
+    @keyframes fadeout {
+        from {top: 180px; opacity: 1;}
+        to {top: 0; opacity: 0;}
+    } 
+
+    #closeBtn{
+        position: absolute;
+        top: 0;
+        right: 25px;
+        font-size: 36px;
+        margin-left: 50px;
+        color: black;
+    }
+
+
+    .tooltip{
+        background-color: #333;
+        color: #fff; 
+        padding: 5px;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div id="body">
+    <div id="snackbar">
+        <a href="#" class="closebtn" id="closeBtn">&times;</a>
+        <p id="snackbar-text"></p>
+    </div> 
+    <svg width="100%" height="1000">
+    </svg>
+</div>
+
+<script>
+    //uradjeno po uzoru na primjer sa vjezbi
+    
+    document.getElementById('closeBtn').onclick = function(){
+        var x = document.getElementById("snackbar");
+        x.className = x.className.replace("show", "");
+    };
+    
+    var nodes={
+    {% for v in vertices %}
+       "vertex_{{v.id}}":{id: "{{v.id}}", name:"vertex_{{v.id}}", vertex_name:"{{v.name}}",vertex_description:"{{v.description}}"},
+    {% endfor %}
+    };
+
+    var links=[
+    {% for e in edges %}
+          {source:"vertex_{{e.source_vertex.id}}",target:"vertex_{{e.destination_vertex.id}}", edge_name:"{{e.name}}", directed:"{{e.directed}}", edge_description: "{{e.description}}"},
+    {% endfor %}
+    ];
+
+    // Connect events with core component
+    d3.select('svg').on('core_vertex_selected', function() {
+        const vertex = d3.event.detail;
+        d3.selectAll('.node').each(function (node) {
+            if(node !== undefined)
+                d3.select(this).classed('selected', node.id == vertex.id);
+        });
+    });
+
+    links.forEach(function(link) {
+        link.source = nodes[link.source];
+        link.target = nodes[link.target];
+    });
+
+    var force = d3.layout.force()
+        .size([1000, 1000])
+        .gravity(0)
+        .nodes(d3.values(nodes))
+        .links(links)
+        .on("tick", tick)
+        .linkDistance(1600)
+        .charge(-40)
+        .start();
+
+    
+    var svg = d3.select("svg").call(d3.behavior.zoom().on("zoom", function () {
+            svg.attr("transform", "translate(" + d3.event.translate + ")" + " scale(" + d3.event.scale + ")")
+        }))
+        .append("g");
+
+    var div = d3.select("#body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 1);
+    
+            // https://stackoverflow.com/questions/36965610/how-can-i-add-an-arrow-links-in-d3-js
+    svg.append("svg:defs").selectAll("marker")
+        .data(["end"])      
+        .enter().append("svg:marker") 
+            .attr("id", String)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 60)
+            .attr("refY", 0)
+            .attr("markerWidth", 10)
+            .attr("markerHeight", 10)
+            .attr("orient", "auto")
+        .append("svg:path")
+            .attr("d", "M0,-5L10,0L0,5");
+
+    // dodavanje grana
+    var link = svg.selectAll('.link')
+        .data(links)
+        .enter().append('g')
+        .attr('class', 'link')
+        // https://stackoverflow.com/questions/18205034/d3-adding-data-attribute-conditionally
+        .each(function(e){
+            var header = d3.select(this);
+            if(e.directed === "True"){
+                header.attr("marker-end", "url(#end)")
+            }
+        })
+        .on("dblclick", function(e){
+            showEdgeDescription(e);
+            d3.event.stopPropagation();
+        })
+        .on("mouseover", mouseover)
+        .on("mousemove", function(d){mousemove(d);})
+        .on("mouseout", mouseout);
+
+
+    // https://stackoverflow.com/questions/35768178/how-to-add-link-name-on-the-line-d3-js
+    var oneLink = link.append('line')
+        .style("stroke-width", 3.5);
+
+
+    // naziv grane
+    var linkLabel = link.append("text")
+        .attr("class","link-label")
+        .attr("dy", ".20em")
+        .attr("text-anchor", "middle")
+        .attr("stroke","black")
+        .text(function(d){
+        return d.edge_name;
+        })
+        .attr("x",function(d){
+            return ((d.source.x + d.target.x)/2);
+        })
+        .attr("y", function(d){
+            return ((d.source.y + d.target.y)/2);
+        });
+
+
+    // dodavanje cvorova
+    var node = svg.selectAll('.node')
+        .data(force.nodes()) //add
+        .enter().append('g')
+        .attr('class', 'node')
+        .attr('id', function(d){return d.name;})
+    // https://stackoverflow.com/questions/46619153/d3-zoom-and-pan-with-rect-drag
+        .on("mousedown", function() { d3.event.stopPropagation(); })
+        .on('dblclick',function(d){
+            showVertexDescription(d);
+            d3.event.stopPropagation();
+        }).
+        on('click', function(d) {
+            console.log("FIRE EVENT");
+            const customEvent = new CustomEvent('plugin_vertex_selected', {bubbles: true, detail: d.id});
+            const dispatcher = document.getElementById('treeEventDispatcher');
+            dispatcher.dispatchEvent(customEvent); 
+        })
+        .on("mouseover", mouseover)
+        .on("mousemove", function(d){mousemove(d);})
+        .on("mouseout", mouseout);
+
+
+    
+
+    d3.selectAll('.node').each(function(d){complexView(d);});
+      
+    function mouseover() {
+        div.transition()
+            .duration(300)
+            .style("opacity", 1);
+    }
+
+    function mousemove(d) {
+        div
+            .text("Double click to see attributes.")
+            .style("left", (d3.event.pageX + 20) + "px")
+            .style("top", (d3.event.pageY + 20) + "px");
+    }
+
+    function mouseout() {
+         div.transition()
+            .duration(300)
+            .style("opacity", 0);
+    }
+
+    function showEdgeDescription(e){
+        e.edge_description = e.edge_description
+                        .replaceAll("&lt;", "<")
+                        .replaceAll("&gt;", ">");
+        
+        let text = "<h3>Edge</h3><hr><strong>name: </strong>" + e.edge_name + "<br><strong>source vertex: </strong>" + e.source.vertex_name + 
+        "<br><strong> destination vertex: </strong>" + e.target.vertex_name + "<br><strong>directed: </strong>" + e.directed + "<br>" + e.edge_description;
+        
+        var x = document.getElementById("snackbar-text");
+        x.innerHTML = text;
+        document.getElementById("snackbar").className = "show";
+
+        }                       
+
+    function showVertexDescription(d){
+        d.vertex_description = d.vertex_description
+                        .replaceAll("&lt;", "<")
+                        .replaceAll("&gt;", ">");
+
+        let text = "<h3>Vertex</h3><hr><strong>id: </strong>" + d.name + "<br><strong>name: </strong>" + d.vertex_name + "<br>" + d.vertex_description
+
+        var x = document.getElementById("snackbar-text");
+        x.innerHTML = text;
+        document.getElementById("snackbar").className = "show";
+
+    }
+
+    function complexView(d){
+
+        var nameLength = d.vertex_name.length;
+        var width = Math.max(150, nameLength * 25);
+        var height = Math.min(70, width * 0.4);
+
+
+        //dodavanje pravougaonika
+        d3.select("g#"+d.name).append('rect')
+        .attr('x',-10)
+        .attr('y',-10)
+        .attr('rx', 25)
+        .attr('ry', 25)
+        .attr('width',width)
+        .attr('height',height)
+        
+        
+        //dodavanje naziva cvora
+        d3.select("g#"+d.name).append('text').attr('x',width/2 - 10).attr('y',30)
+        .attr('text-anchor','middle')
+        .attr('font-family','sans-serif')
+        .attr('fill','white').text(d.vertex_name);
+
+    }
+
+    function tick(e) {
+
+        //pomjeranje vezano za grane
+        oneLink.attr('x1', function (d) {
+            return d.source.x;
+        })
+            .attr('x2', function (d) {
+                return d.target.x;
+            })
+            .attr('y1', function (d) {
+                return d.source.y;
+            })
+
+            .attr('y2', function (d) {
+                return d.target.y;
+            });
+        
+        linkLabel.attr("x", function(d){
+                return ((d.source.x + d.target.x)/2);
+            }).attr("y", function(d){
+                return ((d.source.y + d.target.y)/2);
+            })
+            .attr("fill", "black")    
+
+        //pomjeranje vezano za cvorove
+        node.attr("transform", function (d) {
+            return "translate(" + d.x + "," + d.y + ")";
+        })
+            .call(force.drag);
+
+    }
+
+
+</script>
+{% endblock %}

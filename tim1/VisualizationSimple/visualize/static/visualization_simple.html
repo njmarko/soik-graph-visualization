@@ -1,0 +1,307 @@
+<!-- Used Vezbe9 primerProdavnicaForceLayout.html as a starting point for this force layout -->
+{% block head_sadrzaj %}
+<style>
+    .link {
+        stroke-width: 1.6px;
+        stroke: rgb(101,254,50);
+    }
+    .node {
+        cursor: pointer;
+        fill:rgb(64,156,241);
+    }
+    #svg-component{
+        background-color: #018281;
+    }
+    .link_txt{
+        font-family: serif;
+    }
+
+    .node.fixed {
+      fill: rgb(68, 30, 150);
+    }
+    .node.selected {
+        fill: rgb(149, 25, 59);
+    }
+    .link-label{
+       stroke:#5c0d29;
+    }
+    .node_label{
+      fill : rgb(255,255,255);
+    }
+
+    .tooltip{
+        opacity: 1;
+    }
+    .tooltip{
+        border-radius: 25px;
+        width: 250px;
+        background: rgba(255,255,255, 0.8);
+        padding: 20px;
+    }
+
+</style>
+{% endblock %}
+{% block content %}
+<div id="main">
+    <svg id="svg-component" width="100%" height="1000">
+    </svg>
+</div>
+<script>
+    var nodes={
+    {% for v in vertices %}
+       "vertex_{{v.id}}":{id:"{{v.id}}",name:"vertex_{{v.id}}", vertex_name:"{{v.name}}",attributes:{{v.attributes|safe|escape}}},
+    {% endfor %}
+    };
+
+    var links=[
+    {% for e in edges %}
+          {source:"vertex_{{e.source_vertex.id if e.source_vertex else ""}}",target:"vertex_{{e.destination_vertex.id if e.destination_vertex else ""}}",
+              directed:"{{e.directed}}", edge_name:"{{e.name}}",
+              attributes:{{ e.attributes |safe|escape}}},
+    {% endfor %}
+    ];
+
+
+
+    links.forEach(function(link) {
+        link.source = nodes[link.source];
+        link.target = nodes[link.target];
+    });
+
+    var force = d3.layout.force()
+        .gravity(0.0001)
+        .linkDistance(1200)
+        .friction(0.5)
+        .linkStrength(0.9)
+        {#.chargeDistance(2500)#}
+        .nodes(d3.values(nodes))
+        .charge(-180)
+        .links(links)
+        .on("tick", tick)
+        .start()
+        ;
+
+    //https://bl.ocks.org/mbostock/3750558
+    var drag = force.drag()
+        .on("dragstart", dragstart);
+
+
+
+    var svg = d3.select("svg")
+    // Vezbe9 primerPanZoom.html
+        .call(d3.behavior.zoom().translate([400,400]).scale(.05)
+            .on("zoom", function () {
+                svg.attr("transform", "translate(" + d3.event.translate + ")" + " scale(" + d3.event.scale + ")")
+            }))
+        .append("g")
+        .attr("transform","translate(400,400)scale(.05)")
+        ;
+
+
+        // Connect events with core component
+    d3.select('svg').on('core_vertex_selected', function() {
+        const vertex = d3.event.detail;
+        d3.selectAll('.node').each(function (node) {
+            if (node){
+                d3.select(this).classed('selected', node.id == vertex.id);
+            }
+        });
+    });
+
+
+     // https://stackoverflow.com/questions/36965610/how-can-i-add-an-arrow-links-in-d3-js
+    svg.append("svg:defs").selectAll("marker")
+            .data(["end"])
+        .enter().append("svg:marker")
+            .attr("id", String)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 21)
+            .attr("refY", 0)
+            .attr("markerWidth", 10)
+            .attr("markerHeight", 10)
+            .attr("orient", "auto")
+            .attr("stroke","#000000")
+            .attr("fill", "#65FE95")
+        .append("svg:path")
+            .attr("d", "M0,-5L10,0L0,5");
+
+
+
+    // add the links
+    var link = svg.selectAll('.link')
+        .data(links)
+        .enter().append('g')
+        .attr('class', 'link')
+        // https://stackoverflow.com/questions/18205034/d3-adding-data-attribute-conditionally
+        .each(function(e){
+            var header = d3.select(this);
+            if(e.directed === "True"){
+                header.attr("marker-end", "url(#end)")
+            }
+        })
+        .on("mouseover",mouseover)
+        .on("mousemove", function(d){mousemove(d);})
+        .on("mouseout",mouseout);
+
+
+    // some code that helped me in displaying text on the line
+    // https://stackoverflow.com/questions/35768178/how-to-add-link-name-on-the-line-d3-js
+
+    var one_link = link.append('line')
+        .style("stroke-width", 3.5)
+        ;
+
+    // link text
+    var link_txt = link.append("text")
+        .attr("class","link-label")
+        .attr("dy", ".20em")
+        .attr("text-anchor", "middle")
+        .text(function(d){
+        return d.edge_name;
+        })
+        .attr("x",function(d){
+            return ((d.source.x + d.target.x)/2);
+        })
+        .attr("y", function(d){
+            return ((d.source.y + d.target.y)/2);
+        });
+
+    // add the nodes
+    var node = svg.selectAll('.node')
+        .data(force.nodes()) //add
+        .enter().append('g')
+        .attr('class', 'node')
+        .attr('id', function(d){return d.name;})
+    // https://stackoverflow.com/questions/46619153/d3-zoom-and-pan-with-rect-drag
+        //https://bl.ocks.org/mbostock/3750558
+        .on("mousedown", function() { d3.event.stopPropagation(); })
+        .on("dblclick", dblclick)
+        .call(drag)
+        .on('click', function(d) {
+            const customEvent = new CustomEvent('plugin_vertex_selected', {bubbles: true, detail: d.id});
+            const dispatcher = document.getElementById('treeEventDispatcher');
+            dispatcher.dispatchEvent(customEvent);
+        })
+
+        .on("mouseover",mouseover)
+        .on("mousemove", function(d){mousemove(d);})
+        .on("mouseout",mouseout)
+
+        ;
+
+    d3.selectAll('.node').each(function(d){simpleNodesView(d);});
+
+
+    var div = d3.select("#main").append("div")
+        .attr("class", "tooltip")
+        .style('display','none');
+
+    function mouseover() {
+
+        div.transition()
+            .duration(1000)
+            .style("opacity", 1)
+            .style('display','block')
+            ;
+    }
+    function listAttributes(d){
+        let retVal = "<div>";
+
+        for (const [key, value] of Object.entries(d.attributes)) {
+          retVal += "<div> <strong>"+ key + "</strong> : <em>" + value + "<\em></div>";
+        }
+
+        return retVal + "</div>";
+    }
+    function mousemove(d) {
+
+        div
+            .html( listAttributes(d))
+            .style("left", (d3.event.pageX + 15) + "px")
+            .style("top", (d3.event.pageY + 15) + "px");
+    }
+
+
+
+    function mouseout() {
+         div.transition()
+            .duration(300)
+            .style("opacity", 0)
+            {#.transition()#}
+            {#.duration(300)#}
+            .style("display", 'none')
+            ;
+
+    }
+
+
+
+
+//https://bl.ocks.org/mbostock/3750558
+    function dblclick(d) {
+        d3.select(this).classed("fixed", d.fixed = false);
+        d3.event.stopPropagation();
+    }
+
+    function dragstart(d) {
+        d3.select(this).classed("fixed", d.fixed = true);
+    }
+
+
+    function simpleNodesView(d){
+
+      var textSize=20;
+    //   var radius=d.vertex_name.length*textSize /4 + 10
+        var radius = 40;
+
+      //Shape of the vertex
+      d3.select("g#"+d.name).append('circle')
+      .attr("r",radius)
+      .attr('x',0).attr('y',0);
+      //Name of the vertex
+      d3.select("g#"+d.name).append('text')
+      .attr('x',0).attr('y',0)
+      .attr('font-size',textSize).attr('font-family','serif')
+      .attr('class','node_label')
+      .text(d.vertex_name)
+      .attr('text-anchor','middle');
+    }
+
+    function tick(e) {
+
+        one_link.attr('x1', function (d) {
+            return d.source.x;
+        })
+            .attr('x2', function (d) {
+                return d.target.x;
+            })
+            .attr('y1', function (d) {
+                return d.source.y;
+            })
+
+            .attr('y2', function (d) {
+                return d.target.y;
+            });
+
+        node.attr("transform", function (d) {
+            return "translate(" + d.x + "," + d.y + ")";
+        })
+            .call(force.drag);
+
+        // update text position similarly to how lines are updated
+        link_txt.attr("x", function(d){
+            return ((d.source.x + d.target.x)/2);
+        }).attr("y", function(d){
+            return ((d.source.y + d.target.y)/2);
+        })
+        .attr("fill", "red")
+
+    }
+
+    // can be used to get random colors
+    function getRndInteger(min, max) {
+        return Math.floor(Math.random() * (max - min) ) + min;
+    }
+
+</script>
+{% endblock %}

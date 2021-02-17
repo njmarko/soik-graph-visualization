@@ -1,0 +1,31 @@
+@startuml "Graph class diagram"
+
+class Attribute {
+    {field} - Integer id
+    {field} - String name
+    {field} - Object value
+}
+
+class Vertex {
+    {field} - Integer id
+}
+
+class Edge {
+    {field} - Integer id
+    {field} - Boolean directed
+}
+
+class Graph {
+
+}
+
+Graph "0..1" --> "*" Edge
+Graph "0..1" --> "*" Vertex
+
+Vertex "0..1" -- "*" Edge
+Vertex "0..1" -- "*" Edge
+
+Vertex "0..1" --> "*" Attribute
+Edge "0..1" --> "*" Attribute
+
+@enduml

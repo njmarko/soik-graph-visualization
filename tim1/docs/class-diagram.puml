@@ -1,0 +1,70 @@
+@startuml "Class diagram"
+
+class DataLoaderService{
+    {method} +String {abstract} name()
+    {method} +String {abstract} identifier()
+    {method} +Graph {abstract} load()
+
+
+}
+class FirstDataLoader{
+    {field} - Object _wiki_parsed
+    {field} - Object[] _level_ones
+    {field} - String[] _ignores
+    {method} - Graph _load_graph()
+    {method} - void _process_distro(Vertex parent, Object element)
+    {method} - void _process_leaf_node(Vertex parent, Object element)
+    {method} - String _get_headline_reference_from_li(Object li)
+    {method} - String _get_distro_description(Object li)
+    {method} - Edge _build_edge(String name, bool directed, Vertex source, Vertex destination)
+    {method} - Vertex _build_vertex(String name, String description)
+    {method} - Object _parse_linux_wiki()
+    {method} - String _get_distro_name_from_li(Object li)
+    {method} - Object[] _get_children_distros_from_li(Object li)
+
+}
+class SecondDataLoader{
+    {method} - Object _parse_wiki_page()
+    {method} - void _get_family_tree()
+    {method} - void _get_children(Object ol_element, Vertex parent, int level)
+    {method} - String _get_name_and_description(String text)
+
+
+}
+
+class ThirdDataLoader{
+    {field} + Object[] planets
+    {field} + Object[] satelites
+    {method} - Object[] _read_planets()
+    {method} - Object[] _read_satelites()
+    {method} - Graph _get_graph()
+    {method} - Vertex _add_attributes_to_planet_vertex(Object planet)
+    {method} - Vertex _add_attributes_to_satellite_vertex(Object satellite):
+    {method} - Edge _create_edge(Vertex planet_vertex, Vertex satellite_vertex)
+}
+
+
+class VisualizerService{
+    {method} +String {abstract} name()
+    {method} +String {abstract} identifier()
+    {method} +void {abstract} visualize()
+
+
+}
+
+
+class VisualizeGraphSimple{
+    {method} + Object[] get_vertices_data(Graph graph)
+    {method} + Object[] get_edges_data(Graph graph)
+}
+class VisualizeGraphComplex
+
+DataLoaderService <|-- FirstDataLoader
+DataLoaderService <|-- SecondDataLoader
+DataLoaderService <|-- ThirdDataLoader
+
+VisualizerService <|-- VisualizeGraphSimple
+VisualizerService <|-- VisualizeGraphComplex
+
+
+@enduml

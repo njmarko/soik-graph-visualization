@@ -1,0 +1,17 @@
+@startuml "Component diagram"
+
+() "DataLoaderService" as DLS
+() "VisualizerService" as VS
+
+left to right direction
+[Core] -left- VS
+[Core] -up- DLS
+
+[Linux distributions] -(  DLS
+[Loza Nemanjica] -(  DLS
+[Planets and satellites] -( DLS
+
+[Simple Visualization] -(  VS
+[Complex Visualization] -(  VS
+
+@enduml
